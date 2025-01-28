@@ -8,3 +8,15 @@ v0.1:
 - Write-ahead log
 - Transactions
 - String-only values
+
+v0.2:
+
+- Server
+- Small command language (SET, GET, DEL, KEYS, etc)
+
+v0.3:
+
+- Two-node KV store
+- Network communication
+- Primary-backup replication
+- Two-phase commit protocol
