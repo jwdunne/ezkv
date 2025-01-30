@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -23,7 +23,7 @@ type Store struct {
 }
 
 func NewStore(path string) (*Store, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModeAppend)
 	if err != nil {
 		return nil, fmt.Errorf("could not open path: %s", path)
 	}
@@ -31,6 +31,10 @@ func NewStore(path string) (*Store, error) {
 	store := &Store{
 		data: make(map[string]string),
 		log:  f,
+	}
+
+	if err := store.recover(); err != nil {
+		return nil, fmt.Errorf("could not recover store from wal: %v", err)
 	}
 
 	return store, nil
@@ -44,7 +48,7 @@ func (s *Store) Get(key string) (string, error) {
 		return value, nil
 	}
 
-	return "", errors.New("key: %s not found")
+	return "", fmt.Errorf("key: %s not found", key)
 }
 
 func (s *Store) Put(key string, value string) error {
@@ -99,4 +103,23 @@ func (s *Store) writeEntry(cmd string, key string, value string) error {
 	}
 
 	return nil
+}
+
+func (s *Store) recover() error {
+	scanner := bufio.NewScanner(s.log)
+	for scanner.Scan() {
+		var op Operation
+		if err := json.Unmarshal(scanner.Bytes(), &op); err != nil {
+			return fmt.Errorf("could not decode recovery entry: %v", err)
+		}
+
+		switch op.Type {
+		case "put":
+			s.data[op.Key] = op.Value
+		case "delete":
+			delete(s.data, op.Key)
+		}
+	}
+
+	return scanner.Err()
 }
